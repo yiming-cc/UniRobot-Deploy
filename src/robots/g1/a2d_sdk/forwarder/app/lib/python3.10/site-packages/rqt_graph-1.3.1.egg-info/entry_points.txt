@@ -1,0 +1,3 @@
+[console_scripts]
+rqt_graph = rqt_graph.main:main
+

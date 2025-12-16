@@ -1,0 +1,26 @@
+Log file created at: 2025/12/12 12:38:45
+Running on machine: TP
+Log line format: [IWEF]mmdd hh:mm:ss.uuuuuu threadid file:line] msg
+I1212 12:38:45.282757 4098532 dylog_impl.cpp:607] [DYLOG] set dylog default level from env = FATAL
+W1212 12:38:45.282770 4098532 dylog_impl.cpp:617] [DYLOG] can't find available soc record file with path : /proc/device-tree/model, use s1
+I1212 12:38:45.282771 4098532 dylog_impl.cpp:626] [DYLOG] soc num : s1
+I1212 12:38:45.282773 4098532 dylog_impl.cpp:631] [DYLOG] can't read scene_mode, use sud
+W1212 12:38:45.282776 4098532 dylog_impl.cpp:693] [DYLOG] can't find available json config file with path : /home/agi/app/conf/scene_server/dylog_sud_default.json, use default.
+I1212 12:38:45.282806 4098532 dylog_impl.cpp:251] [DYLOG] register dsd_name : dylog/python3.10/cosine_internal
+I1212 12:43:45.283205 4098696 dylog_impl.cpp:372] [DYLOG] log frequency: cosine_internal:0 
+I1212 12:43:45.283286 4098696 dylog_impl.cpp:251] [DYLOG] register dsd_name : dyblog/log_frequency
+I1212 12:48:45.283521 4098696 dylog_impl.cpp:372] [DYLOG] log frequency: cosine_internal:0 
+I1212 12:53:45.283646 4098696 dylog_impl.cpp:372] [DYLOG] log frequency: cosine_internal:0 
+I1212 12:58:45.283753 4098696 dylog_impl.cpp:372] [DYLOG] log frequency: cosine_internal:0 
+I1212 13:03:45.283972 4098696 dylog_impl.cpp:372] [DYLOG] log frequency: cosine_internal:0 
+I1212 13:08:45.284188 4098696 dylog_impl.cpp:372] [DYLOG] log frequency: cosine_internal:0 
+I1212 13:13:45.284425 4098696 dylog_impl.cpp:372] [DYLOG] log frequency: cosine_internal:0 
+I1212 13:18:45.284621 4098696 dylog_impl.cpp:372] [DYLOG] log frequency: cosine_internal:0 
+I1212 13:23:45.284731 4098696 dylog_impl.cpp:372] [DYLOG] log frequency: cosine_internal:0 
+I1212 13:28:45.284834 4098696 dylog_impl.cpp:372] [DYLOG] log frequency: cosine_internal:0 
+I1212 13:33:45.284991 4098696 dylog_impl.cpp:372] [DYLOG] log frequency: cosine_internal:0 
+I1212 13:38:45.285173 4098696 dylog_impl.cpp:372] [DYLOG] log frequency: cosine_internal:0 
+I1212 13:43:45.285334 4098696 dylog_impl.cpp:372] [DYLOG] log frequency: cosine_internal:0 
+I1212 13:48:45.285590 4098696 dylog_impl.cpp:372] [DYLOG] log frequency: cosine_internal:0 
+I1212 13:53:45.285702 4098696 dylog_impl.cpp:372] [DYLOG] log frequency: cosine_internal:0 
+I1212 13:58:45.285903 4098696 dylog_impl.cpp:372] [DYLOG] log frequency: cosine_internal:0 

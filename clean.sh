@@ -1,0 +1,1 @@
+rm -rf /home/ymc/.cache/huggingface/lerobot/ymc/eval_g1

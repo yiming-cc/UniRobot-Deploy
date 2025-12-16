@@ -1,0 +1,14 @@
+setup.py
+qt_dotgraph/__init__.py
+qt_dotgraph/colors.py
+qt_dotgraph/dot_shapes.py
+qt_dotgraph/dot_to_qt.py
+qt_dotgraph/edge_item.py
+qt_dotgraph/graph_item.py
+qt_dotgraph/node_item.py
+qt_dotgraph/pydotfactory.py
+qt_dotgraph/pygraphvizfactory.py
+qt_dotgraph.egg-info/PKG-INFO
+qt_dotgraph.egg-info/SOURCES.txt
+qt_dotgraph.egg-info/dependency_links.txt
+qt_dotgraph.egg-info/top_level.txt

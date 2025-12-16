@@ -1,0 +1,6 @@
+if(DEFINED SQLite_INCLUDE_DIRS)
+    set(SQLite3_INCLUDE_DIRS ${SQLite_INCLUDE_DIRS})
+endif()
+if(DEFINED SQLite_LIBRARIES)
+    set(SQLite3_LIBRARIES ${SQLite_LIBRARIES})
+endif()

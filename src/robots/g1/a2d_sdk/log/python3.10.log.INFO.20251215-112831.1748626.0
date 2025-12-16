@@ -1,0 +1,29 @@
+Log file created at: 2025/12/15 11:28:31
+Running on machine: TP
+Log line format: [IWEF]mmdd hh:mm:ss.uuuuuu threadid file:line] msg
+I1215 11:28:31.989704 1748626 dylog_impl.cpp:607] [DYLOG] set dylog default level from env = FATAL
+W1215 11:28:31.989720 1748626 dylog_impl.cpp:617] [DYLOG] can't find available soc record file with path : /proc/device-tree/model, use s1
+I1215 11:28:31.989722 1748626 dylog_impl.cpp:626] [DYLOG] soc num : s1
+I1215 11:28:31.989723 1748626 dylog_impl.cpp:631] [DYLOG] can't read scene_mode, use sud
+W1215 11:28:31.989728 1748626 dylog_impl.cpp:693] [DYLOG] can't find available json config file with path : /home/agi/app/conf/scene_server/dylog_sud_default.json, use default.
+I1215 11:28:31.989781 1748626 dylog_impl.cpp:251] [DYLOG] register dsd_name : dylog/python3.10/cosine_internal
+I1215 11:28:35.787830 1748626 dylog_impl.cpp:251] [DYLOG] register dsd_name : dylog/python3.10/aorta
+I1215 11:28:35.792330 1748626 dylog_impl.cpp:251] [DYLOG] register dsd_name : dylog/python3.10/agibotdds_logs
+I1215 11:33:31.990155 1748711 dylog_impl.cpp:372] [DYLOG] log frequency: agibotdds_logs:0 aorta:0 cosine_internal:0 
+I1215 11:33:31.990247 1748711 dylog_impl.cpp:251] [DYLOG] register dsd_name : dyblog/log_frequency
+I1215 11:38:31.990406 1748711 dylog_impl.cpp:372] [DYLOG] log frequency: agibotdds_logs:0 aorta:0 cosine_internal:0 
+I1215 11:43:31.990630 1748711 dylog_impl.cpp:372] [DYLOG] log frequency: agibotdds_logs:0 aorta:0 cosine_internal:0 
+I1215 11:48:31.990717 1748711 dylog_impl.cpp:372] [DYLOG] log frequency: agibotdds_logs:0 aorta:0 cosine_internal:0 
+I1215 11:53:31.990877 1748711 dylog_impl.cpp:372] [DYLOG] log frequency: agibotdds_logs:0 aorta:0 cosine_internal:0 
+I1215 11:58:31.990993 1748711 dylog_impl.cpp:372] [DYLOG] log frequency: agibotdds_logs:0 aorta:0 cosine_internal:0 
+I1215 12:03:31.991294 1748711 dylog_impl.cpp:372] [DYLOG] log frequency: agibotdds_logs:0 aorta:0 cosine_internal:0 
+I1215 12:08:31.991582 1748711 dylog_impl.cpp:372] [DYLOG] log frequency: agibotdds_logs:0 aorta:0 cosine_internal:0 
+I1215 12:13:31.490245 1748711 dylog_impl.cpp:372] [DYLOG] log frequency: agibotdds_logs:0 aorta:0 cosine_internal:0 
+I1215 12:18:31.490342 1748711 dylog_impl.cpp:372] [DYLOG] log frequency: agibotdds_logs:0 aorta:0 cosine_internal:0 
+I1215 12:23:31.490564 1748711 dylog_impl.cpp:372] [DYLOG] log frequency: agibotdds_logs:0 aorta:0 cosine_internal:0 
+I1215 12:28:31.490765 1748711 dylog_impl.cpp:372] [DYLOG] log frequency: agibotdds_logs:0 aorta:0 cosine_internal:0 
+I1215 12:33:31.490901 1748711 dylog_impl.cpp:372] [DYLOG] log frequency: agibotdds_logs:0 aorta:0 cosine_internal:0 
+I1215 12:38:31.491173 1748711 dylog_impl.cpp:372] [DYLOG] log frequency: agibotdds_logs:0 aorta:0 cosine_internal:0 
+I1215 12:43:31.491389 1748711 dylog_impl.cpp:372] [DYLOG] log frequency: agibotdds_logs:0 aorta:0 cosine_internal:0 
+I1215 12:48:31.491596 1748711 dylog_impl.cpp:372] [DYLOG] log frequency: agibotdds_logs:0 aorta:0 cosine_internal:0 
+I1215 12:53:31.491717 1748711 dylog_impl.cpp:372] [DYLOG] log frequency: agibotdds_logs:0 aorta:0 cosine_internal:0 

@@ -1,0 +1,3 @@
+[rosidl_cli.command.generate.typesupport_extensions]
+introspection_cpp = rosidl_typesupport_introspection_cpp.cli:GenerateIntrospectionCppTypesupport
+

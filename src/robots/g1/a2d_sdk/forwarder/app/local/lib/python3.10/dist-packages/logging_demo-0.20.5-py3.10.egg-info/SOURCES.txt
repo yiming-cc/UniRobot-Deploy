@@ -1,0 +1,8 @@
+setup.py
+logging_demo/__init__.py
+logging_demo.egg-info/PKG-INFO
+logging_demo.egg-info/SOURCES.txt
+logging_demo.egg-info/dependency_links.txt
+logging_demo.egg-info/top_level.txt
+logging_demo/srv/__init__.py
+logging_demo/srv/_config_logger.py

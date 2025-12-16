@@ -1,0 +1,9 @@
+*.mp4
+
+.vscode/
+
+*.png
+
+# 取消对assets文件夹的忽略，确保其内容被git跟踪
+!assets/
+!assets/**

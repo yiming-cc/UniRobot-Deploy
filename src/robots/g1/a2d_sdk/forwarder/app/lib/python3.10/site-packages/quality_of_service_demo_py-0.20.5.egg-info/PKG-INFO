@@ -1,0 +1,18 @@
+Metadata-Version: 2.1
+Name: quality-of-service-demo-py
+Version: 0.20.5
+Summary: Python nodes to demonstrate ROS2 QoS policies.
+Home-page: UNKNOWN
+Author: Emerson Knapp
+Maintainer: Audrow Nash, Michael Jeronimo
+Maintainer-email: audrow@openrobotics.org, michael.jeronimo@openrobotics.org
+License: Apache License, Version 2.0
+Keywords: ROS
+Platform: UNKNOWN
+Classifier: Intended Audience :: Developers
+Classifier: License :: OSI Approved :: Apache Software License
+Classifier: Programming Language :: Python
+Classifier: Topic :: Software Development
+
+UNKNOWN
+

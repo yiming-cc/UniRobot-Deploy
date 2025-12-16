@@ -1,0 +1,4 @@
+[console_scripts]
+data_publisher = topic_monitor.scripts.data_publisher:main
+topic_monitor = topic_monitor.scripts.topic_monitor:main
+
