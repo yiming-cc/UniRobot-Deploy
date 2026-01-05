@@ -7,3 +7,12 @@
 # 取消对assets文件夹的忽略，确保其内容被git跟踪
 !assets/
 !assets/**
+
+
+camera.txt
+
+hal.txt
+
+src/robots/g1/a2d_sdk
+
+**/__pycache__/

@@ -1,0 +1,1 @@
+source src/robots/g1/a2d_sdk/env.sh

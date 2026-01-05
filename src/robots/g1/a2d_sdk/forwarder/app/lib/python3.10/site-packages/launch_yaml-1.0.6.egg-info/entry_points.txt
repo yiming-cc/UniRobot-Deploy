@@ -1,3 +1,0 @@
-[launch.frontend.parser]
-yaml = launch_yaml:Parser
-

@@ -32,8 +32,8 @@ class G1(Robot):
 
         }
 
-        motion_status = self.robot_controller.get_motion_status()
-        
+        # get end effector pose states
+        motion_status = self.robot_controller.get_motion_status()    
         obs["arm_left_x"] = motion_status["frames"]["arm_left_link7"]["xyzrpy"][0]
         obs["arm_left_y"] = motion_status["frames"]["arm_left_link7"]["xyzrpy"][1]
         obs["arm_left_z"] = motion_status["frames"]["arm_left_link7"]["xyzrpy"][2]
@@ -48,11 +48,30 @@ class G1(Robot):
         obs["arm_right_pitch"] = motion_status["frames"]["arm_right_link7"]["xyzrpy"][4]
         obs["arm_right_yaw"] = motion_status["frames"]["arm_right_link7"]["xyzrpy"][5]
 
+        # get joint position states
+        arm_joint_states, _ = self.robot.arm_joint_states()
+        obs["arm_left_joint_0"] = arm_joint_states[0]
+        obs["arm_left_joint_1"] = arm_joint_states[1]
+        obs["arm_left_joint_2"] = arm_joint_states[2]
+        obs["arm_left_joint_3"] = arm_joint_states[3]
+        obs["arm_left_joint_4"] = arm_joint_states[4]
+        obs["arm_left_joint_5"] = arm_joint_states[5]
+        obs["arm_left_joint_6"] = arm_joint_states[6]
+        
+        obs["arm_right_joint_0"] = arm_joint_states[7]
+        obs["arm_right_joint_1"] = arm_joint_states[8]
+        obs["arm_right_joint_2"] = arm_joint_states[9]
+        obs["arm_right_joint_3"] = arm_joint_states[10]
+        obs["arm_right_joint_4"] = arm_joint_states[11]
+        obs["arm_right_joint_5"] = arm_joint_states[12]
+        obs["arm_right_joint_6"] = arm_joint_states[13]
 
-        gripper_states = self.robot.gripper_states()
-        obs["gripper_left"] = gripper_states[0][0]
-        obs["gripper_right"] = gripper_states[0][1]
+        # get gripper states
+        gripper_states, _ = self.robot.gripper_states()
+        obs["gripper_left"] = gripper_states[0]
+        obs["gripper_right"] = gripper_states[1]
 
+        # get camera images
         head, _ = self.robot_camera.get_latest_image("head")
         hand_left, _ = self.robot_camera.get_latest_image("hand_left")
         hand_right, _ = self.robot_camera.get_latest_image("hand_right")
@@ -65,31 +84,38 @@ class G1(Robot):
         # Image.fromarray(head).save("res/camera_head.png")
         # Image.fromarray(hand_left).save("res/camera_hand_left.png")
         # Image.fromarray(hand_right).save("res/camera_hand_right.png")
-
         
         return obs
 
     def send_action(self, action: dict[str, Any]) -> dict[str, Any]:
         # print(action)
-        left_pose = {
-            "x": action["arm_left_x"],
-            "y": action["arm_left_y"],
-            "z": action["arm_left_z"],
-            "qx": action["arm_left_qx"],
-            "qy": action["arm_left_qy"],
-            "qz": action["arm_left_qz"],
-            "qw": action["arm_left_qw"],
-        }
-        right_pose = {
-            "x": action["arm_right_x"],
-            "y": action["arm_right_y"],
-            "z": action["arm_right_z"],
-            "qx": action["arm_right_qx"],
-            "qy": action["arm_right_qy"],
-            "qz": action["arm_right_qz"],
-            "qw": action["arm_right_qw"],
-        }
-        self.robot_controller.set_end_effector_pose_control(2.0, ["left_arm", "right_arm"], left_pose, right_pose)
+        if action["is_eef"] > 0.5:
+            left_pose = {
+                "x": action["arm_left_x"],
+                "y": action["arm_left_y"],
+                "z": action["arm_left_z"],
+                "qx": action["arm_left_qx"],
+                "qy": action["arm_left_qy"],
+                "qz": action["arm_left_qz"],
+                "qw": action["arm_left_qw"],
+            }
+            right_pose = {
+                "x": action["arm_right_x"],
+                "y": action["arm_right_y"],
+                "z": action["arm_right_z"],
+                "qx": action["arm_right_qx"],
+                "qy": action["arm_right_qy"],
+                "qz": action["arm_right_qz"],
+                "qw": action["arm_right_qw"],
+            }
+            self.robot_controller.set_end_effector_pose_control(2.0, ["left_arm", "right_arm"], left_pose, right_pose)
+        else:
+            arm_joint_positions = [
+                action["arm_left_joint_0"], action["arm_left_joint_1"], action["arm_left_joint_2"], action["arm_left_joint_3"], action["arm_left_joint_4"], action["arm_left_joint_5"], action["arm_left_joint_6"], 
+                action["arm_right_joint_0"], action["arm_right_joint_1"], action["arm_right_joint_2"], action["arm_right_joint_3"], action["arm_right_joint_4"], action["arm_right_joint_5"], action["arm_right_joint_6"]
+            ]
+            self.robot.move_arm(arm_joint_positions)
+        
         self.robot.move_gripper([action["gripper_left"], action["gripper_right"]])
 
 
@@ -98,23 +124,42 @@ class G1(Robot):
     @property
     def observation_features(self) -> dict:
         return {
-            # state
+            # left arm
             "arm_left_x": float,
             "arm_left_y": float,
             "arm_left_z": float,
             "arm_left_roll": float,
             "arm_left_pitch": float,
             "arm_left_yaw": float,
+
+            "arm_left_joint_0": float,
+            "arm_left_joint_1": float,
+            "arm_left_joint_2": float,
+            "arm_left_joint_3": float,
+            "arm_left_joint_4": float,
+            "arm_left_joint_5": float,
+            "arm_left_joint_6": float,
+
             "gripper_left": float,
 
+            # right arm
             "arm_right_x": float,
             "arm_right_y": float,
             "arm_right_z": float,
             "arm_right_roll": float,
             "arm_right_pitch": float,
             "arm_right_yaw": float,
+
+            "arm_right_joint_0": float,
+            "arm_right_joint_1": float,
+            "arm_right_joint_2": float,
+            "arm_right_joint_3": float,
+            "arm_right_joint_4": float,
+            "arm_right_joint_5": float,
+            "arm_right_joint_6": float,
+
             "gripper_right": float,
-            
+
             # image
             "head": (480, 640, 3),
             "hand_left": (480, 640, 3),
@@ -124,6 +169,7 @@ class G1(Robot):
     @property
     def action_features(self) -> dict:
         return {
+            # left arm
             "arm_left_x": float,
             "arm_left_y": float,
             "arm_left_z": float,
@@ -131,8 +177,18 @@ class G1(Robot):
             "arm_left_qy": float,
             "arm_left_qz": float,
             "arm_left_qw": float,
-            "gripper_left": float,
 
+            "arm_left_joint_0": float,
+            "arm_left_joint_1": float,
+            "arm_left_joint_2": float,
+            "arm_left_joint_3": float,
+            "arm_left_joint_4": float,
+            "arm_left_joint_5": float,
+            "arm_left_joint_6": float,
+
+            "gripper_left": float,
+            
+            # right arm
             "arm_right_x": float,
             "arm_right_y": float,
             "arm_right_z": float,
@@ -140,7 +196,19 @@ class G1(Robot):
             "arm_right_qy": float,
             "arm_right_qz": float,
             "arm_right_qw": float,
+
+            "arm_right_joint_0": float,
+            "arm_right_joint_1": float,
+            "arm_right_joint_2": float,
+            "arm_right_joint_3": float,
+            "arm_right_joint_4": float,
+            "arm_right_joint_5": float,
+            "arm_right_joint_6": float,
+
             "gripper_right": float,
+
+            # send type
+            "is_eef": float
         }
 
     @property

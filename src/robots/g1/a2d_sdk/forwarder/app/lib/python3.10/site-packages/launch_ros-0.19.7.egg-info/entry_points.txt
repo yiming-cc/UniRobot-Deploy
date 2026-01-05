@@ -1,3 +1,0 @@
-[launch.frontend.launch_extension]
-launch_ros = launch_ros
-

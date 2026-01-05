@@ -128,6 +128,8 @@ from lerobot.utils.utils import (
 )
 from lerobot.utils.visualization_utils import init_rerun, log_rerun_data
 
+from src.utils.import_utils import register_local_plugins
+
 
 @dataclass
 class DatasetRecordConfig:
@@ -522,15 +524,10 @@ def record(cfg: RecordConfig) -> LeRobotDataset:
 
 def main():
     register_third_party_plugins()
+    register_local_plugins()
     record()
 
 
 if __name__ == "__main__":
-    from src.robots.g1.g1 import G1
-    from src.robots.g1.config_g1 import G1Config
-    from src.policies.xvla.modeling_xvla_client import XVLAClientPolicy
-    from src.policies.xvla.configuration_xvla_client import XVLAClientConfig
-
-    
     main()
 
