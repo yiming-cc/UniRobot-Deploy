@@ -283,7 +283,7 @@ class RotationConverter:
         Args:
             d6: (N, 6) or (6,)
         Returns:
-            euler: (N, 3) or (3,)
+            euler: (N, 3) or (3,) 
         """
         d6 = np.asarray(d6)
         matrix = RotationConverter._rotate6d_to_matrix(d6, row_concat)
