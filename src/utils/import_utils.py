@@ -7,6 +7,9 @@ def register_local_plugins() -> None:
     from src.robots.g1.g1 import G1
     from src.robots.g1.config_g1 import G1Config
 
+    from src.robots.ur5e.ur5e import UR5e
+    from src.robots.ur5e.config_ur5e import UR5eConfig
+
 
     # policies
     from src.policies.xvla_client.modeling_xvla_client import XVLAClientPolicy
