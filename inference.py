@@ -7,7 +7,7 @@ import logging
 
 import numpy as np
 
-from robots.bimanual_ur.config import BimanualURConfig
+from robots.bimanual_ur import BimanualURConfig, BimanualUR
 from robots.bimanual_ur.clients.starvla_client import StarVLAClient
 
 logging.basicConfig(level=logging.INFO)
@@ -39,11 +39,14 @@ def main():
 
     if args.debug:
         client = MockStarVLAClient(config)
+        client.connect()
     else:
+        robot = BimanualUR(config)
+        robot.connect()
         client = StarVLAClient(
             host=args.host,
             port=args.port,
-            robot_config=config,
+            robot=robot,
             execution_steps=args.execution_steps,
             prefix_steps=args.prefix_steps,
             fps=args.fps,
@@ -51,7 +54,6 @@ def main():
             action_type=args.action_type,
             verbose=args.verbose,
         )
-    client.connect()
 
     camera_names = list(config.camera_serial_numbers.keys())
     print(f"Starting inference loop: task='{args.task}', fps={args.fps}, action_type={args.action_type}")
@@ -77,6 +79,8 @@ def main():
         print("\nStopping...")
     finally:
         client.close()
+        if not args.debug:
+            robot.disconnect()
         print("Disconnected.")
 
 

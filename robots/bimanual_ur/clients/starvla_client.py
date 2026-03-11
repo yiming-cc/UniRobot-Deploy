@@ -11,9 +11,7 @@ import websockets.sync.client
 from openpi_client import msgpack_numpy
 from openpi_client.websocket_client_policy import WebsocketClientPolicy
 
-from ..config import BimanualURConfig, URConfig
-from ..ur import UR
-from ..realsense_camera import RealSenseCamera
+from ..bimanual_ur import BimanualUR
 
 logger = logging.getLogger(__name__)
 
@@ -22,14 +20,15 @@ class StarVLAClient(WebsocketClientPolicy):
     """StarVLA client with integrated bimanual UR hardware control.
 
     Inherits WebsocketClientPolicy for WebSocket/msgpack transport,
-    adds: hardware init, observation, action execution, RTC async inference.
+    adds: observation, action execution, RTC async inference.
+    Hardware init/lifecycle is managed by the BimanualUR instance.
     """
 
     def __init__(
         self,
         host: str = "0.0.0.0",
         port: Optional[int] = None,
-        robot_config: Optional[BimanualURConfig] = None,
+        robot: BimanualUR = None,
         execution_steps: int = 16,
         prefix_steps: int = 0,
         adaptive_prefix: bool = False,
@@ -39,17 +38,13 @@ class StarVLAClient(WebsocketClientPolicy):
         verbose: bool = False,
         api_key: Optional[str] = None,
     ):
-        # --- Hardware setup ---
-        self.robot_config = robot_config or BimanualURConfig()
+        # --- Hardware (managed externally) ---
+        self.robot = robot
         self.action_type = action_type
-        self._init_robot()
 
         # --- WebSocket setup (parent handles connection + metadata) ---
-        # Strip proxy env vars before connecting
         for k in ("HTTP_PROXY", "http_proxy", "HTTPS_PROXY", "https_proxy", "ALL_PROXY", "all_proxy"):
             os.environ.pop(k, None)
-        # Normalize host URL: strip http(s):// scheme and add ws:// prefix
-        # so that the parent class doesn't produce "ws://https://..."
         host = host.replace("https://", "").replace("http://", "")
         host = f"ws://{host}"
         super().__init__(host=host, port=port, api_key=api_key)
@@ -73,46 +68,6 @@ class StarVLAClient(WebsocketClientPolicy):
             self.last_delay = None
             self.worker_busy = False
             self._start_infer_async_thread()
-
-    # ── Hardware init ─────────────────────────────────────────────
-
-    def _init_robot(self):
-        cfg = self.robot_config
-        left_config = URConfig(
-            robot_ip=cfg.left_robot_ip,
-            use_gripper=cfg.use_gripper,
-            gripper_port=cfg.left_gripper_port,
-            gripper_threshold=cfg.gripper_threshold,
-            binarize_gripper=cfg.binarize_gripper,
-            gripper_limits=cfg.gripper_limits,
-            init_joint_positions=cfg.left_init_joint_positions,
-            init=False,
-        )
-        right_config = URConfig(
-            robot_ip=cfg.right_robot_ip,
-            use_gripper=cfg.use_gripper,
-            gripper_port=cfg.right_gripper_port,
-            gripper_threshold=cfg.gripper_threshold,
-            binarize_gripper=cfg.binarize_gripper,
-            gripper_limits=cfg.gripper_limits,
-            init_joint_positions=cfg.right_init_joint_positions,
-            init=False,
-        )
-        self.left_arm = UR(left_config)
-        self.right_arm = UR(right_config)
-
-        self.cameras = {}
-        for name, serial in cfg.camera_serial_numbers.items():
-            self.cameras[name] = RealSenseCamera(
-                serial_number=serial,
-                width=cfg.camera_width,
-                height=cfg.camera_height,
-                fps=cfg.camera_fps,
-            )
-
-        if cfg.init:
-            logger.info("Go to home pose")
-            self.go_home()
 
     # ── WebSocket overrides ───────────────────────────────────────
 
@@ -172,26 +127,18 @@ class StarVLAClient(WebsocketClientPolicy):
         self._ws, self._server_metadata = self._wait_for_server()
         logging.info("Reconnected successfully.")
 
-    # ── Hardware API ──────────────────────────────────────────────
-
-    def connect(self):
-        for cam in self.cameras.values():
-            cam.connect()
-
-    def go_home(self):
-        self.left_arm.rest_home_pose()
-        self.right_arm.rest_home_pose()
+    # ── Observation & Action (hardware-specific for this model) ───
 
     def get_observation(self, use_camera=True) -> dict[str, Any]:
         obs_dict = {}
         if use_camera:
-            for key, cam in self.cameras.items():
+            for key, cam in self.robot.cameras.items():
                 obs_dict[key] = cam.read()
 
-        left_tcp = self.left_arm.get_tcp_state()
-        right_tcp = self.right_arm.get_tcp_state()
-        left_joints = self.left_arm.get_joint_state()
-        right_joints = self.right_arm.get_joint_state()
+        left_tcp = self.robot.left_arm.get_tcp_state()
+        right_tcp = self.robot.right_arm.get_tcp_state()
+        left_joints = self.robot.left_arm.get_joint_state()
+        right_joints = self.robot.right_arm.get_joint_state()
 
         obs_dict["ee_pos_rot"] = np.concatenate([left_tcp, right_tcp])
         obs_dict["joint_positions"] = np.concatenate([left_joints, right_joints])
@@ -202,20 +149,14 @@ class StarVLAClient(WebsocketClientPolicy):
         action_type = action_type or self.action_type
         if action_type in ("joint", "gello"):
             joint_action = np.array([action[f"joint_positions_{i}"] for i in range(14)])
-            self.left_arm.step_joint(joint_action[:7])
-            self.right_arm.step_joint(joint_action[7:])
+            self.robot.left_arm.step_joint(joint_action[:7])
+            self.robot.right_arm.step_joint(joint_action[7:])
         elif action_type == "tcp":
             tcp_action = np.array([action[f"ee_pos_rot_{i}"] for i in range(14)])
-            self.left_arm.step_tcp(tcp_action[:7])
-            self.right_arm.step_tcp(tcp_action[7:])
+            self.robot.left_arm.step_tcp(tcp_action[:7])
+            self.robot.right_arm.step_tcp(tcp_action[7:])
         else:
             raise ValueError(f"Unknown action_type: {action_type}")
-
-    def disconnect(self):
-        self.left_arm.disconnect()
-        self.right_arm.disconnect()
-        for cam in self.cameras.values():
-            cam.disconnect()
 
     # ── Data formatting ───────────────────────────────────────────
 
@@ -354,7 +295,7 @@ class StarVLAClient(WebsocketClientPolicy):
 
         # 1. Observe
         obs = self.get_observation()
-        camera_names = list(self.robot_config.camera_serial_numbers.keys())
+        camera_names = list(self.robot.config.camera_serial_numbers.keys())
         images = [obs[cam] for cam in camera_names]
         state = np.concatenate([obs["ee_pos_rot"], obs["joint_positions"]])[None]  # (1, D)
 
@@ -400,4 +341,3 @@ class StarVLAClient(WebsocketClientPolicy):
             self._ws.close()
         except Exception:
             pass
-        self.disconnect()
