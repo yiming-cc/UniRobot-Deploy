@@ -58,6 +58,7 @@ lerobot-record \
 ```
 """
 
+import contextlib
 import logging
 import time
 from dataclasses import asdict, dataclass, field
@@ -147,6 +148,8 @@ class DatasetRecordConfig:
     reset_time_s: int | float = 60
     # Number of episodes to record.
     num_episodes: int = 50
+    # Whether to save data to dataset (default: False, only run robot without saving)
+    save_data: bool = False
     # Encode frames in the dataset into video
     video: bool = True
     # Upload dataset to Hugging Face hub.
@@ -251,6 +254,7 @@ def record_loop(
     robot_observation_processor: RobotProcessorPipeline[
         RobotObservation, RobotObservation
     ],  # runs after robot
+    dataset_features: dict[str, Any],  # Features for building frames
     dataset: LeRobotDataset | None = None,
     teleop: Teleoperator | list[Teleoperator] | None = None,
     policy: PreTrainedPolicy | None = None,
@@ -307,7 +311,7 @@ def record_loop(
         obs_processed = robot_observation_processor(obs)
 
         if policy is not None or dataset is not None:
-            observation_frame = build_dataset_frame(dataset.features, obs_processed, prefix=OBS_STR)
+            observation_frame = build_dataset_frame(dataset_features, obs_processed, prefix=OBS_STR)
 
         # Get action from either policy or teleop
         start_predict_action_t = time.perf_counter()
@@ -323,7 +327,7 @@ def record_loop(
                 robot_type=robot.robot_type,
             )
 
-            act_processed_policy: RobotAction = make_robot_action(action_values, dataset.features)
+            act_processed_policy: RobotAction = make_robot_action(action_values, dataset_features)
 
         elif policy is None and isinstance(teleop, Teleoperator):
             act = teleop.get_action()
@@ -366,7 +370,7 @@ def record_loop(
 
         # Write to dataset
         if dataset is not None:
-            action_frame = build_dataset_frame(dataset.features, action_values, prefix=ACTION)
+            action_frame = build_dataset_frame(dataset_features, action_values, prefix=ACTION)
             frame = {**observation_frame, **action_frame, "task": single_task}
             dataset.add_frame(frame)
 
@@ -407,43 +411,48 @@ def record(cfg: RecordConfig) -> LeRobotDataset:
         ),
     )
 
-    if cfg.resume:
-        dataset = LeRobotDataset(
-            cfg.dataset.repo_id,
-            root=cfg.dataset.root,
-            batch_encoding_size=cfg.dataset.video_encoding_batch_size,
-        )
-
-        if hasattr(robot, "cameras") and len(robot.cameras) > 0:
-            dataset.start_image_writer(
-                num_processes=cfg.dataset.num_image_writer_processes,
-                num_threads=cfg.dataset.num_image_writer_threads_per_camera * len(robot.cameras),
+    # Only create dataset if save_data is True
+    dataset = None
+    if cfg.dataset.save_data:
+        if cfg.resume:
+            dataset = LeRobotDataset(
+                cfg.dataset.repo_id,
+                root=cfg.dataset.root,
+                batch_encoding_size=cfg.dataset.video_encoding_batch_size,
             )
-        sanity_check_dataset_robot_compatibility(dataset, robot, cfg.dataset.fps, dataset_features)
+
+            if hasattr(robot, "cameras") and len(robot.cameras) > 0:
+                dataset.start_image_writer(
+                    num_processes=cfg.dataset.num_image_writer_processes,
+                    num_threads=cfg.dataset.num_image_writer_threads_per_camera * len(robot.cameras),
+                )
+            sanity_check_dataset_robot_compatibility(dataset, robot, cfg.dataset.fps, dataset_features)
+        else:
+            # Create empty dataset or load existing saved episodes
+            sanity_check_dataset_name(cfg.dataset.repo_id, cfg.policy)
+            dataset = LeRobotDataset.create(
+                cfg.dataset.repo_id,
+                cfg.dataset.fps,
+                root=cfg.dataset.root,
+                robot_type=robot.name,
+                features=dataset_features,
+                use_videos=cfg.dataset.video,
+                image_writer_processes=cfg.dataset.num_image_writer_processes,
+                image_writer_threads=cfg.dataset.num_image_writer_threads_per_camera * len(robot.cameras),
+                batch_encoding_size=cfg.dataset.video_encoding_batch_size,
+            )
     else:
-        # Create empty dataset or load existing saved episodes
-        sanity_check_dataset_name(cfg.dataset.repo_id, cfg.policy)
-        dataset = LeRobotDataset.create(
-            cfg.dataset.repo_id,
-            cfg.dataset.fps,
-            root=cfg.dataset.root,
-            robot_type=robot.name,
-            features=dataset_features,
-            use_videos=cfg.dataset.video,
-            image_writer_processes=cfg.dataset.num_image_writer_processes,
-            image_writer_threads=cfg.dataset.num_image_writer_threads_per_camera * len(robot.cameras),
-            batch_encoding_size=cfg.dataset.video_encoding_batch_size,
-        )
+        logging.info("save_data is False, running in execution-only mode (no dataset will be saved)")
 
     # Load pretrained policy
-    policy = None if cfg.policy is None else make_policy(cfg.policy, ds_meta=dataset.meta)
+    policy = None if cfg.policy is None else make_policy(cfg.policy, ds_meta=dataset.meta if dataset else None)
     preprocessor = None
     postprocessor = None
     if cfg.policy is not None:
         preprocessor, postprocessor = make_pre_post_processors(
             policy_cfg=cfg.policy,
             pretrained_path=cfg.policy.pretrained_path,
-            dataset_stats=rename_stats(dataset.meta.stats, cfg.dataset.rename_map),
+            dataset_stats=rename_stats(dataset.meta.stats, cfg.dataset.rename_map) if dataset else None,
             preprocessor_overrides={
                 "device_processor": {"device": cfg.policy.device},
                 "rename_observations_processor": {"rename_map": cfg.dataset.rename_map},
@@ -456,10 +465,10 @@ def record(cfg: RecordConfig) -> LeRobotDataset:
 
     listener, events = init_keyboard_listener()
 
-    with VideoEncodingManager(dataset):
+    with VideoEncodingManager(dataset) if dataset else contextlib.nullcontext():
         recorded_episodes = 0
         while recorded_episodes < cfg.dataset.num_episodes and not events["stop_recording"]:
-            log_say(f"Recording episode {dataset.num_episodes}", cfg.play_sounds)
+            log_say(f"Recording episode {dataset.num_episodes if dataset else recorded_episodes}", cfg.play_sounds)
             record_loop(
                 robot=robot,
                 events=events,
@@ -467,6 +476,7 @@ def record(cfg: RecordConfig) -> LeRobotDataset:
                 teleop_action_processor=teleop_action_processor,
                 robot_action_processor=robot_action_processor,
                 robot_observation_processor=robot_observation_processor,
+                dataset_features=dataset_features,
                 teleop=teleop,
                 policy=policy,
                 preprocessor=preprocessor,
@@ -490,6 +500,7 @@ def record(cfg: RecordConfig) -> LeRobotDataset:
                     teleop_action_processor=teleop_action_processor,
                     robot_action_processor=robot_action_processor,
                     robot_observation_processor=robot_observation_processor,
+                    dataset_features=dataset_features,
                     teleop=teleop,
                     control_time_s=cfg.dataset.reset_time_s,
                     single_task=cfg.dataset.single_task,
@@ -500,10 +511,13 @@ def record(cfg: RecordConfig) -> LeRobotDataset:
                 log_say("Re-record episode", cfg.play_sounds)
                 events["rerecord_episode"] = False
                 events["exit_early"] = False
-                dataset.clear_episode_buffer()
+                if dataset:
+                    dataset.clear_episode_buffer()
                 continue
 
-            dataset.save_episode()
+            # Only save episode if dataset exists
+            if dataset:
+                dataset.save_episode()
             recorded_episodes += 1
 
     log_say("Stop recording", cfg.play_sounds, blocking=True)
@@ -515,7 +529,8 @@ def record(cfg: RecordConfig) -> LeRobotDataset:
     if not is_headless() and listener is not None:
         listener.stop()
 
-    if cfg.dataset.push_to_hub:
+    # Only push to hub if dataset exists and push_to_hub is True
+    if dataset and cfg.dataset.push_to_hub:
         dataset.push_to_hub(tags=cfg.dataset.tags, private=cfg.dataset.private)
 
     log_say("Exiting", cfg.play_sounds)
