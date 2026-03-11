@@ -1,0 +1,8 @@
+numpy
+opencv-python
+websockets>=11.0
+msgpack>=1.0.5
+pyrealsense2
+ur-rtde
+scipy
+pyserial

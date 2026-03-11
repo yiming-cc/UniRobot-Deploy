@@ -4,148 +4,73 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## 项目概述
 
-UniRobot-Deploy 是一个基于 LeRobot 的统一机器人部署框架，允许将任意策略模型部署到任意机器人上。通过实现标准化接口，可以快速集成新的策略模型和机器人平台。
-
-## 核心架构
-
-项目采用三层架构：
-
-1. **Policy Model Server**（远程）：运行在启智平台，接收观测数据（obs）和机器人状态（state），返回推理的动作（action chunk）
-2. **Policy Client**（本地 `src/policies/`）：作为中转站，负责数据格式化
-   - 接收 Robot 的原始数据，格式化后发送给 Server
-   - 接收 Server 的动作预测，格式化后发送给 Robot
-3. **Robot**（本地 `src/robots/`）：与机器人本体交互
-   - 通过 SDK 获取机器人状态（关节位置、末端执行器姿态等）
-   - 通过 SDK 控制机器人执行动作
-   - 获取相机图像
-
-数据流: Robot → Policy Client → Server → Policy Client → Robot
+UniRobot-Deploy 是双臂 UR 机器人的轻量级部署框架，用于 StarVLA 模型推理。通过 WebSocket 连接 StarVLA 推理服务器，实现视觉-语言-动作模型的实时控制。
 
 ## 常用命令
 
-### 运行部署
 ```bash
-bash run.sh
-```
-主要执行 `lerobot_record.py`，配置 robot 类型、policy 类型、server URL 等参数。
+# 环境搭建
+conda create -n unirobot python=3.10
+conda activate unirobot
+pip install -r requirements.txt
+pip install -e /path/to/openpi/packages/openpi-client
 
-### 环境设置
-```bash
-bash setup.sh
-```
-加载 G1 机器人的 SDK 环境变量（source a2d_sdk/env.sh）。
+# 运行推理（需连接硬件和 StarVLA 服务器）
+python inference.py --host="ws://<server>:port/ws" --task="任务描述" --fps=30
 
-### 清理缓存
-```bash
-bash clean.sh
-```
-删除 LeRobot 数据集缓存目录。
+# 无硬件调试模式（使用 MockStarVLAClient）
+python inference.py --host="ws://<server>:port/ws" --task="test" --debug
 
-### 主程序参数示例
-```bash
-python lerobot_record.py \
-    --robot.type G1 \
-    --dataset.repo_id ymc/eval_g1 \
-    --dataset.single_task "任务描述" \
-    --dataset.push_to_hub False \
-    --dataset.episode_time_s 10000000 \
-    --policy.type xvla_client \
-    --policy.url <启智平台转发的URL>
+# 关键参数
+#   --action_type=joint|tcp    动作空间类型
+#   --rtc / --no-rtc           是否启用异步推理（RTC 模式）
+#   --execution_steps=16       每次推理执行的动作步数
+#   --prefix_steps=8           RTC 模式下的前缀步数（平滑衔接）
+#   --verbose / --debug        日志级别
 ```
 
-## 代码结构
+无构建系统，纯 Python 项目。无测试套件。
 
-### src/policies/
-Policy Client 实现，每个 policy 包含三个文件：
-- `configuration_<policy>.py`: 配置类，继承自 `PreTrainedConfig`
-- `modeling_<policy>.py`: 核心逻辑，继承自 `PreTrainedPolicy`，实现 `select_action()` 方法
-- `processor_<policy>.py`: 数据处理器，负责格式化请求和响应
+## 架构
 
-**关键方法**:
-- `select_action(batch)`: 接收观测数据，返回动作（可能从缓存的 action chunk 中选择）
-- `forward_process(batch)`: 将 Robot 数据格式化为 Server 需要的格式
-- `backward_process(action_chunk)`: 将 Server 返回的动作格式化为 Robot 需要的格式
+两层数据流：**推理循环** → **StarVLAClient（集成硬件控制 + 推理通信）**
 
-**已实现的 Policy**:
-- `xvla_client`: X-VLA 模型客户端
-- `go1_client`: GO1 模型客户端
-- `openpi`: OpenPI 模型客户端
-- `template`: 最小实现模板
+```
+inference.py (主控制循环, 30Hz)
+  └── StarVLAClient (继承 WebsocketClientPolicy)
+        ├── WebSocket 通信 (openpi-client, msgpack 序列化)
+        ├── RTC 异步推理 (action queue + prefix 平滑控制)
+        ├── UR × 2 (RTDE 控制, servoJ/servoL)
+        │     └── Robotiq 2F-85 (Modbus RTU, 120Hz 后台线程)
+        └── RealSenseCamera × 3 (top, wrist_l, wrist_r)
+```
 
-### src/robots/
-Robot 实现，每个 robot 包含两个文件：
-- `config_<robot>.py`: 配置类，继承自 `RobotConfig`
-- `<robot>.py`: 核心逻辑，继承自 `Robot`
+### 核心模块
 
-**必须实现的方法**:
-- `get_observation()`: 返回包含状态和图像的观测字典
-- `send_action(action)`: 接收动作字典，控制机器人执行
-- `observation_features`: 属性，定义观测空间的特征（形状、类型等）
-- `action_features`: 属性，定义动作空间的特征
-- `connect()`, `disconnect()`, `calibrate()`: 连接管理
+- `inference.py` — 入口，argparse 参数解析 + 主循环，调用 `client.step()` 完成单帧
+- `robots/bimanual_ur/clients/starvla_client.py` — StarVLA 客户端，集成硬件控制 + WebSocket 推理 + RTC 异步模式
+- `robots/bimanual_ur/ur.py` — 单臂 RTDE 控制 + Robotiq 夹爪集成
+- `robots/bimanual_ur/config.py` — 硬件配置 dataclass（IP、端口、相机序列号、初始关节角）
 
-**已实现的 Robot**:
-- `g1`: 智元 G1 人形机器人（使用 a2d_sdk）
-- `ur30`: UR30 机械臂
-- `template`: 最小实现模板
+### 关键设计
 
-### src/utils/
-工具函数：
-- `rotation_utils.py`: 旋转表示转换（欧拉角、四元数、旋转矩阵等）
-- `img_utils.py`: 图像处理（resize、center crop 等）
-- `visualize_utils.py`: 可视化工具（action chunk 可视化等）
-- `import_utils.py`: 动态导入工具
+- **Client 集成硬件**：StarVLAClient 继承 openpi-client 的 WebsocketClientPolicy，同时管理双臂和相机，`step()` 方法一次完成观测→推理→执行
+- **RTC 模式**：推理和控制解耦，推理线程持续运行，控制循环从 action queue 消费动作，prefix steps 实现新旧动作序列平滑过渡
+- **安全机制**：关节增量限制（0.8 rad），Home 位姿平滑插值
+- **状态维度**：14 维（每臂 7D = TCP 位姿 + 夹爪），动作维度同理
+- **通信协议**：图像 JPEG 编码 + msgpack 序列化（openpi_client.msgpack_numpy），经 WebSocket 传输
 
-### 主程序
-- `lerobot_record.py`: 从 LeRobot 框架修改而来，协调 Policy 和 Robot，处理数据采集流程
+## 硬件默认配置
 
-## 添加新的 Policy 或 Robot
+| 设备 | 地址 |
+|------|------|
+| 左臂 UR | 192.168.1.100 |
+| 右臂 UR | 192.168.2.100 |
+| 左夹爪 | /dev/ttyUSB0 |
+| 右夹爪 | /dev/ttyUSB1 |
 
-### 添加新 Policy
-1. 在 `src/policies/` 创建新目录
-2. 参考 `template` 实现三个文件
-3. 实现 `select_action()` 方法，通常通过 HTTP 请求与远程 server 通信
-4. 实现数据格式化逻辑（forward_process 和 backward_process）
+相机通过序列号区分（top, wrist_l, wrist_r），在 `config.py` 中配置。
 
-### 添加新 Robot
-1. 在 `src/robots/` 创建新目录
-2. 参考 `template` 实现配置和主类
-3. 实现 `get_observation()` 和 `send_action()` 方法
-4. 定义 `observation_features` 和 `action_features`
-5. 实现连接、校准等管理方法
+## 扩展指南
 
-## 重要概念
-
-### Action Chunk
-策略模型通常一次推理返回多个时间步的动作序列（action chunk），而不是单步动作。Policy Client 会缓存这些动作，每次调用 `select_action()` 时从缓存中取出一个动作，直到缓存用完再请求新的 chunk。
-
-### 数据格式
-- **观测（Observation）**: 包含图像（字典键如 "head", "hand_left" 等）和状态（"observation.state" 张量）
-- **动作（Action）**: 包含末端执行器姿态、关节角度、夹爪状态等，具体格式取决于 robot 实现
-
-### G1 机器人特殊说明
-- 使用 `a2d_sdk` 进行通信（RobotDds, RobotController, CosineCamera）
-- 支持双臂控制和三个相机（头部、左手、右手）
-- 需要先运行 `setup.sh` 加载 SDK 环境
-
-## 依赖项
-
-### 必需依赖
-- **LeRobot**: 必须从源码安装 (`pip install -e .`)
-  ```bash
-  git clone git@github.com:huggingface/lerobot.git
-  cd lerobot && pip install -e .
-  ```
-- **json_numpy**: 用于 JSON 序列化包含 numpy 数组的数据
-
-### Robot 特定依赖
-- G1: `a2d_sdk`（在 `src/robots/g1/a2d_sdk/` 中提供）
-- G1 GUI（可选）: 见 `src/robots/g1/requirements_gui.txt`
-
-## 开发注意事项
-
-- 所有 Policy 和 Robot 类必须有 `name` 类属性和 `config_class` 类属性
-- Policy 的 `select_action()` 方法必须返回形状正确的 Tensor
-- Robot 的 `observation_features` 和 `action_features` 必须与实际数据格式匹配
-- 图像数据通常需要 resize 和 center crop 到统一尺寸（如 480x640）
-- G1 机器人的动作可以是末端执行器姿态（is_eef=True）或关节角度（is_eef=False）
+添加新机器人+客户端：在 `robots/` 下创建新目录，客户端继承 `WebsocketClientPolicy` 并集成硬件控制，实现 `step()` 接口（观测→推理→执行），参考 `bimanual_ur/clients/starvla_client.py`。

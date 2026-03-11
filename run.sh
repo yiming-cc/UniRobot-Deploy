@@ -1,20 +1,10 @@
-bash clean.sh
-
-python lerobot_record.py \
-    --robot.type G1 \
-    --dataset.repo_id ymc/eval_g1 \
-    --dataset.single_task "Retrieve the bottled ad calcium milk from the table with the right arm." \
-    --dataset.push_to_hub False \
-    --dataset.episode_time_s 10000000 \
-    --policy.type xvla_client \
-    --policy.url https://nat-notebook-inspire.sii.edu.cn/ws-6040202d-b785-4b37-98b0-c68d65dd52ce/project-5939d5ca-7339-4306-b57a-7696f8f7a4c1/user-5fd8c13a-1a2d-4ddb-8393-06cb7e005a55/vscode/2626e4db-71f2-4014-b5ad-d6b66775ce7b/dd6f0f46-83f6-40d4-abfa-f30e1381eb8f/proxy/8000/
-
-
-# python lerobot_record.py \
-#     --robot.type G1 \
-#     --dataset.repo_id ymc/eval_g1 \
-#     --dataset.single_task "Retrieve the bottled ad calcium milk from the table with the right arm." \
-#     --dataset.push_to_hub False \
-#     --dataset.episode_time_s 10000000 \
-#     --policy.type go1_client \
-#     --policy.url https://nat-notebook-inspire.sii.edu.cn/ws-6040202d-b785-4b37-98b0-c68d65dd52ce/project-5939d5ca-7339-4306-b57a-7696f8f7a4c1/user-5fd8c13a-1a2d-4ddb-8393-06cb7e005a55/vscode/2626e4db-71f2-4014-b5ad-d6b66775ce7b/dd6f0f46-83f6-40d4-abfa-f30e1381eb8f/proxy/8002/
+#!/bin/bash
+conda run -n unirobot --no-capture-output python inference.py \
+  --host="https://ai-notebook-inspire.sii.edu.cn/ws-9dcc0e1f-80a4-4af2-bc2f-0e352e7b17e6/project-97ab58cb-3162-4d0e-9137-1299d6cdea25/user-6d664c70-4a65-47de-8033-c7f0bd1610c6/vscode/8ba7e934-e894-4b31-ad5b-d00e4b4854ae/428e3bed-9e03-4144-b209-3bf6195b5401/proxy/10093/" \
+  --task="Put all the items on the table into the drawer." \
+  --action_type=joint \
+  --fps=30 \
+  --execution_steps=16 \
+  --prefix_steps=8 \
+  --rtc \
+  --verbose
