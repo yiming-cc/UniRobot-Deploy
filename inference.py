@@ -7,8 +7,7 @@ import logging
 
 import numpy as np
 
-from robots.bimanual_ur import BimanualURConfig, BimanualUR
-from robots.bimanual_ur.clients.starvla_client import StarVLAClient
+from robots import CLIENT_REGISTRY
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -21,44 +20,36 @@ def busy_wait(duration: float):
 
 
 def main():
-    parser = argparse.ArgumentParser(description="StarVLA bimanual UR inference")
-    parser.add_argument("--host", type=str, required=True, help="StarVLA server host URL")
+    # Two-pass parsing: first get --client, then add client-specific args
+    pre_parser = argparse.ArgumentParser(add_help=False)
+    pre_parser.add_argument("--client", type=str, default="bimanual_ur_starvla",
+                            choices=list(CLIENT_REGISTRY.keys()),
+                            help=f"Client type: {', '.join(CLIENT_REGISTRY.keys())}")
+    pre_args, _ = pre_parser.parse_known_args()
+
+    parser = argparse.ArgumentParser(description="UniRobot inference", parents=[pre_parser])
+    parser.add_argument("--host", type=str, required=True, help="Server host URL")
     parser.add_argument("--port", type=int, default=None, help="Server port (if not in URL)")
     parser.add_argument("--task", type=str, required=True, help="Task description")
-    parser.add_argument("--action_type", type=str, default="joint", choices=["joint", "tcp"])
     parser.add_argument("--fps", type=int, default=30)
-    parser.add_argument("--execution_steps", type=int, default=16)
-    parser.add_argument("--prefix_steps", type=int, default=8)
-    parser.add_argument("--rtc", action="store_true", default=True, help="Enable RTC async mode")
-    parser.add_argument("--no-rtc", dest="rtc", action="store_false")
     parser.add_argument("--verbose", action="store_true")
     parser.add_argument("--debug", action="store_true", help="Mock robot hardware for testing")
+
+    # Add client-specific arguments
+    entry = CLIENT_REGISTRY[pre_args.client]
+    if entry.add_arguments:
+        entry.add_arguments(parser)
+
     args = parser.parse_args()
 
-    config = BimanualURConfig()
-
     if args.debug:
-        client = MockStarVLAClient(config)
+        client = MockStarVLAClient()
         client.connect()
+        robot = None
     else:
-        robot = BimanualUR(config)
-        robot.connect()
-        client = StarVLAClient(
-            host=args.host,
-            port=args.port,
-            robot=robot,
-            execution_steps=args.execution_steps,
-            prefix_steps=args.prefix_steps,
-            fps=args.fps,
-            rtc=args.rtc,
-            action_type=args.action_type,
-            verbose=args.verbose,
-        )
+        robot, client = entry.factory(args)
 
-    camera_names = list(config.camera_serial_numbers.keys())
-    print(f"Starting inference loop: task='{args.task}', fps={args.fps}, action_type={args.action_type}")
-    print(f"Cameras: {camera_names}")
-    print(f"RTC: {args.rtc}, execution_steps={args.execution_steps}, prefix_steps={args.prefix_steps}")
+    print(f"Starting inference loop: client='{args.client}', task='{args.task}', fps={args.fps}")
 
     try:
         while True:
@@ -79,17 +70,13 @@ def main():
         print("\nStopping...")
     finally:
         client.close()
-        if not args.debug:
+        if robot is not None:
             robot.disconnect()
         print("Disconnected.")
 
 
 class MockStarVLAClient:
     """Mock client for testing without hardware or server."""
-
-    def __init__(self, config):
-        self.config = config
-        self.camera_names = list(config.camera_serial_numbers.keys())
 
     def connect(self):
         print("[Mock] Client connected")

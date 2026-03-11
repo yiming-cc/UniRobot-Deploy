@@ -341,3 +341,5 @@ class StarVLAClient(WebsocketClientPolicy):
             self._ws.close()
         except Exception:
             pass
+
+
