@@ -6,3 +6,4 @@ pyrealsense2
 ur-rtde
 scipy
 pyserial
+Pillow
