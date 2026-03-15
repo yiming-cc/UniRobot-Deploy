@@ -211,6 +211,23 @@ class DreamZeroClient:
 
     # ── Action parsing & execution ─────────────────────────────────
 
+    def _binarize_gripper(self, action: np.ndarray) -> np.ndarray:
+        """Binarize gripper values in-place.
+
+        Gripper indices: 6, 13 (joint), 20, 27 (tcp).
+        Uses gripper_limits from config to normalize, then threshold at 0.5.
+        """
+        action = action.copy()
+        limits = self.robot.config.gripper_limits
+        gripper_indices = [6, 13, 20, 27]
+        for idx in gripper_indices:
+            if idx < len(action):
+                raw = action[idx]
+                normalized = (raw - limits[0]) / (limits[1] - limits[0])
+                normalized = np.clip(normalized, 0.0, 1.0)
+                action[idx] = limits[1] if normalized >= 0.5 else limits[0]
+        return action
+
     def send_action(self, action: np.ndarray, action_type: Optional[str] = None) -> None:
         """Execute a single 28-dim action on hardware.
 
@@ -221,6 +238,25 @@ class DreamZeroClient:
           [21:28] right_ee_pos_rot       (6D pose + gripper)
         """
         action_type = action_type or self.action_type
+
+        # Debug: log raw gripper values before binarization
+        if self.verbose:
+            logger.info(
+                f"[Action] step={self._global_step} | "
+                f"L_grip_raw={action[6]:.4f}, R_grip_raw={action[13]:.4f} | "
+                f"L_grip_tcp={action[20]:.4f}, R_grip_tcp={action[27]:.4f}"
+            )
+
+        # Binarize gripper values
+        action = self._binarize_gripper(action)
+
+        if self.verbose:
+            logger.info(
+                f"[Action] step={self._global_step} | "
+                f"L_grip_bin={action[6]:.4f}, R_grip_bin={action[13]:.4f} | "
+                f"L_grip_tcp_bin={action[20]:.4f}, R_grip_tcp_bin={action[27]:.4f}"
+            )
+
         if action_type in ("joint", "gello"):
             self.robot.left_arm.step_joint(action[0:7])
             self.robot.right_arm.step_joint(action[7:14])

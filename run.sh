@@ -17,7 +17,7 @@ conda activate unirobot
 # bimanual ur dreamzero client
 python inference.py \
   --client=bimanual_ur_dreamzero \
-  --host="https://ai-notebook-inspire.sii.edu.cn/ws-9dcc0e1f-80a4-4af2-bc2f-0e352e7b17e6/project-5939d5ca-7339-4306-b57a-7696f8f7a4c1/user-5fd8c13a-1a2d-4ddb-8393-06cb7e005a55/vscode/b393d63a-efb7-49a6-b433-709e9cacb353/d5b17446-7d99-48f1-a8d0-dbf838f2381b/proxy/5000/" \
+  --host="https://ai-notebook-inspire.sii.edu.cn/ws-9dcc0e1f-80a4-4af2-bc2f-0e352e7b17e6/project-5939d5ca-7339-4306-b57a-7696f8f7a4c1/user-5fd8c13a-1a2d-4ddb-8393-06cb7e005a55/vscode/b393d63a-efb7-49a6-b433-709e9cacb353/a9a87639-8d6c-46bb-9d81-eb6a490e0a51/proxy/5000/" \
   --task="Put all the items on the table into the drawer." \
   --action_type=joint \
   --fps=30 \
