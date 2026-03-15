@@ -18,15 +18,15 @@ logger = logging.getLogger(__name__)
 ACTION_HORIZON = 24          # Server returns 24-step action chunks
 IMAGE_WIDTH = 640
 IMAGE_HEIGHT = 480
-FRAME_INDICES = [0, 7, 15, 23]  # 4-frame selection from 24-frame buffer
-
+# FRAME_INDICES = [0, 7, 15, 23]  # 4-frame selection from 24-frame buffer
+FRAME_INDICES = [2, 5, 8, 11, 14, 17, 20, 23]  # 8-frame selection from 24-frame buffer
 
 class DreamZeroClient:
     """DreamZero client with integrated bimanual UR hardware control.
 
     Directly manages WebSocket + msgpack transport (no WebsocketClientPolicy).
     Implements multi-frame buffering: first inference sends 1 frame, subsequent
-    inferences send 4 frames selected from a 24-frame rolling buffer.
+    inferences send n frames selected from a 24-frame rolling buffer.
     """
 
     def __init__(
