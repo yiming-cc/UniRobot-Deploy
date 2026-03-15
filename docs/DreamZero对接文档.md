@@ -7,7 +7,7 @@ DreamZeroClient 用于对接 DreamZero 推理服务端（`socket_test_optimized_
 | 差异点 | OpenPI 协议 | DreamZero 协议 |
 |--------|------------|----------------|
 | 多帧机制 | 每次 1 帧 | 首次 1 帧，后续 4 帧 |
-| 图像分辨率 | 224×224 (pad) | 180×320 (resize) |
+| 图像分辨率 | 224×224 (pad) | 480×640 (resize) |
 | 状态格式 | `observation/state` (28D 合并) | 4 个独立 key（各 7D） |
 | 会话管理 | 无 | `session_id` (UUID) |
 | 推理入口 | `infer()` 由父类封装 | 需手动添加 `endpoint="infer"` |
@@ -56,8 +56,8 @@ ws.recv()  # 服务端确认
 ```python
 {
     # ── 图像观测 ──
-    # 首次推理: (180, 320, 3) uint8
-    # 后续推理: (4, 180, 320, 3) uint8
+    # 首次推理: (480, 640, 3) uint8
+    # 后续推理: (4, 480, 640, 3) uint8
     "observation/top":     np.ndarray,
     "observation/wrist_l": np.ndarray,
     "observation/wrist_r": np.ndarray,
@@ -100,14 +100,14 @@ ws.recv()  # 服务端确认
 
 ```python
 ACTION_HORIZON = 24           # 每次推理返回 24 步动作
-IMAGE_WIDTH = 320
-IMAGE_HEIGHT = 180
+IMAGE_WIDTH = 640
+IMAGE_HEIGHT = 480
 FRAME_INDICES = [0, 7, 15, 23]  # 对应 RELATIVE_OFFSETS = [-23, -16, -8, 0]
 ```
 
 ### 帧缓冲
 
-每个相机维护 `deque(maxlen=24)`，每次 `step()` 捕获当前帧并 resize 到 180×320 后入队。
+每个相机维护 `deque(maxlen=24)`，每次 `step()` 捕获当前帧并 resize 到 480×640 后入队。
 
 内存占用：3 相机 × 24 帧 × 180×320×3 ≈ 12MB，可忽略。
 
@@ -253,3 +253,25 @@ python inference.py \
 1. `reset()` 会生成新 UUID，确认不是意外触发了 reset
 2. 检查 task_description 是否在每次 `step()` 调用时变化（会触发自动 reset）
 3. 日志中搜索 "Session reset" 确认 reset 调用时机
+
+---
+
+## 8. 修复记录
+
+### 2026-03-12: 图像分辨率不匹配
+
+**现象**: 服务端报错 `Video video.top has invalid resolution (320, 180), expected (640, 480)`
+
+**原因**: 客户端 `IMAGE_WIDTH=320, IMAGE_HEIGHT=180` 与服务端期望的 `(640, 480)` 不匹配。原实现参考了错误的分辨率配置。
+
+**修复**: 将 `dreamzero_client.py` 中的分辨率常量改为 `IMAGE_WIDTH=640, IMAGE_HEIGHT=480`，同步更新文档中所有分辨率描述。
+
+**影响**: 帧缓冲内存占用从 ~12MB 增至 ~53MB（3 相机 × 24 帧 × 480×640×3），仍可忽略。
+
+### 2026-03-12: 动作数组只读导致安全检查写入失败
+
+**现象**: `ValueError: assignment destination is read-only`，发生在 `ur.py:check_safety_joint` 中 `action[:6] = ...`
+
+**原因**: msgpack 反序列化（`msgpack_numpy.unpackb`）返回的 numpy 数组默认是不可写的（non-writable buffer），而 `check_safety_joint` 需要就地修改动作数组。
+
+**修复**: 在 `_infer_ws` 返回后用 `np.array()` 创建可写副本：`actions = np.array(self._infer_ws(dz_obs))`

@@ -16,8 +16,8 @@ logger = logging.getLogger(__name__)
 
 # DreamZero protocol constants
 ACTION_HORIZON = 24          # Server returns 24-step action chunks
-IMAGE_WIDTH = 320
-IMAGE_HEIGHT = 180
+IMAGE_WIDTH = 640
+IMAGE_HEIGHT = 480
 FRAME_INDICES = [0, 7, 15, 23]  # 4-frame selection from 24-frame buffer
 
 
@@ -168,7 +168,7 @@ class DreamZeroClient:
     # ── Frame buffer & multi-frame dispatch ────────────────────────
 
     def _buffer_frames(self, obs: dict):
-        """Resize camera images to (180, 320) and append to frame buffers."""
+        """Resize camera images to (480, 640) and append to frame buffers."""
         for cam_name in self._frame_buffer:
             img = obs[cam_name]
             resized = cv2.resize(img, (IMAGE_WIDTH, IMAGE_HEIGHT))
@@ -262,7 +262,7 @@ class DreamZeroClient:
         # 1. Observe
         obs = self.get_observation()
 
-        # 2. Buffer camera frames (resize to 180x320)
+        # 2. Buffer camera frames (resize to 480x640)
         self._buffer_frames(obs)
 
         # 3. Infer when action queue is empty
@@ -270,7 +270,7 @@ class DreamZeroClient:
             dz_obs = self._build_observation(obs)
 
             start = time.perf_counter()
-            actions = self._infer_ws(dz_obs)  # (24, 28)
+            actions = np.array(self._infer_ws(dz_obs))  # (24, 28), writable copy
             elapsed_ms = (time.perf_counter() - start) * 1000
 
             if self.verbose:
