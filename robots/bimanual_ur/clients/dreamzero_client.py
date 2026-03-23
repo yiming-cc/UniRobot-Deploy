@@ -194,17 +194,32 @@ class DreamZeroClient:
             return buf[-1]
         else:
             n = len(buf)
-            indices = np.round(np.linspace(0, n - 1, NUM_FRAMES_PER_CHUNK)).astype(int)
+            indices = n - 1 - np.round(np.linspace(0, n - 1, NUM_FRAMES_PER_CHUNK)).astype(int)
+            indices = np.sort(indices)
             frames = [buf[i] for i in indices]
             return np.stack(frames, axis=0)
+
+    @staticmethod
+    def encode_image(img: np.ndarray, quality: int = 70) -> bytes:
+        """JPEG-encode a single image to reduce transmission size."""
+        _, buf = cv2.imencode(".jpg", img, [int(cv2.IMWRITE_JPEG_QUALITY), quality])
+        return buf.tobytes()
+
+    def _encode_frames(self, frames: np.ndarray) -> list[bytes]:
+        """Encode single frame (H,W,C) or multiple frames (N,H,W,C) to JPEG bytes list."""
+        if frames.ndim == 3:
+            return [self.encode_image(frames)]
+        return [self.encode_image(frames[i]) for i in range(frames.shape[0])]
 
     def _build_observation(self, obs: dict) -> dict:
         """Build DreamZero-format observation dict."""
         dz_obs = {}
 
         # Images: observation/top, observation/wrist_l, observation/wrist_r
+        # JPEG-encoded to reduce payload size
         for cam_name in self._frame_buffer:
-            dz_obs[f"observation/{cam_name}"] = self._get_frames(cam_name)
+            dz_obs[f"observation/{cam_name}"] = self._encode_frames(self._get_frames(cam_name))
+            # dz_obs[f"observation/{cam_name}"] = self._get_frames(cam_name)
 
         # Robot state: split joint positions (6D) and gripper (1D)
         dz_obs["observation/left_joint_positions"] = obs["left_joint_positions"][:6]
