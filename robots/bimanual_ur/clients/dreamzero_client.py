@@ -15,11 +15,9 @@ from ..bimanual_ur import BimanualUR
 logger = logging.getLogger(__name__)
 
 # DreamZero protocol constants
-ACTION_HORIZON = 24          # Server returns 24-step action chunks
+NUM_FRAMES_PER_CHUNK = 8     # Number of frames to sample from the buffer
 IMAGE_WIDTH = 640
 IMAGE_HEIGHT = 480
-# FRAME_INDICES = [0, 7, 15, 23]  # 4-frame selection from 24-frame buffer
-FRAME_INDICES = [2, 5, 8, 11, 14, 17, 20, 23]  # 8-frame selection from 24-frame buffer
 
 class DreamZeroClient:
     """DreamZero client with integrated bimanual UR hardware control.
@@ -36,12 +34,14 @@ class DreamZeroClient:
         robot: BimanualUR = None,
         fps: int = 30,
         action_type: str = "joint",
+        execution_steps: int = 24,
         verbose: bool = False,
         api_key: Optional[str] = None,
     ):
         # --- Hardware ---
         self.robot = robot
         self.action_type = action_type
+        self.execution_steps = execution_steps
 
         # --- Inference state ---
         self.task_description = None
@@ -57,7 +57,7 @@ class DreamZeroClient:
         # --- Frame buffers (one deque per camera) ---
         camera_names = list(self.robot.config.camera_serial_numbers.keys())
         self._frame_buffer: dict[str, deque] = {
-            name: deque(maxlen=ACTION_HORIZON) for name in camera_names
+            name: deque(maxlen=self.execution_steps) for name in camera_names
         }
 
         # --- WebSocket setup ---
@@ -126,11 +126,23 @@ class DreamZeroClient:
         data = self._packer.pack(obs)
         for attempt in range(3):
             try:
+                t0 = time.perf_counter()
                 self._ws.send(data)
+                t1 = time.perf_counter()
                 response = self._ws.recv()
+                t2 = time.perf_counter()
                 if isinstance(response, str):
                     raise RuntimeError(f"Error from DreamZero server:\n{response}")
-                return msgpack_numpy.unpackb(response)
+                result = msgpack_numpy.unpackb(response)
+                if self.verbose:
+                    send_ms = (t1 - t0) * 1000
+                    recv_ms = (t2 - t1) * 1000
+                    total_ms = (t2 - t0) * 1000
+                    logger.info(
+                        f"[WS] send={send_ms:.1f}ms, recv={recv_ms:.1f}ms, "
+                        f"total={total_ms:.1f}ms, payload={len(data)/1024:.1f}KB"
+                    )
+                return result
             except RuntimeError:
                 raise
             except Exception as e:
@@ -175,30 +187,34 @@ class DreamZeroClient:
             self._frame_buffer[cam_name].append(resized)
 
     def _get_frames(self, cam_name: str) -> np.ndarray:
-        """Get frames for inference: 1 frame (first call) or 4 frames (subsequent)."""
+        """Get frames for inference: 1 frame (first call) or NUM_FRAMES_PER_CHUNK uniformly sampled frames."""
         buf = self._frame_buffer[cam_name]
 
         if self._is_first_inference:
-            # First inference: single frame (H, W, 3)
             return buf[-1]
         else:
-            # Subsequent: 4 frames from indices [0, 7, 15, 23] in the 24-frame buffer
-            frames = [buf[i] for i in FRAME_INDICES]
-            return np.stack(frames, axis=0)  # (4, H, W, 3)
+            n = len(buf)
+            indices = np.round(np.linspace(0, n - 1, NUM_FRAMES_PER_CHUNK)).astype(int)
+            frames = [buf[i] for i in indices]
+            return np.stack(frames, axis=0)
 
     def _build_observation(self, obs: dict) -> dict:
         """Build DreamZero-format observation dict."""
         dz_obs = {}
 
-        # Images: single frame or 4 frames per camera
+        # Images: observation/top, observation/wrist_l, observation/wrist_r
         for cam_name in self._frame_buffer:
             dz_obs[f"observation/{cam_name}"] = self._get_frames(cam_name)
 
-        # Robot state: 4 separate keys, each (7,)
-        dz_obs["observation/left_joint_positions"] = obs["left_joint_positions"]
-        dz_obs["observation/right_joint_positions"] = obs["right_joint_positions"]
-        dz_obs["observation/left_ee_pos_rot"] = obs["left_ee_pos_rot"]
-        dz_obs["observation/right_ee_pos_rot"] = obs["right_ee_pos_rot"]
+        # Robot state: split joint positions (6D) and gripper (1D)
+        dz_obs["observation/left_joint_positions"] = obs["left_joint_positions"][:6]
+        dz_obs["observation/left_joint_gripper"] = obs["left_joint_positions"][6:7]
+        dz_obs["observation/right_joint_positions"] = obs["right_joint_positions"][:6]
+        dz_obs["observation/right_joint_gripper"] = obs["right_joint_positions"][6:7]
+        dz_obs["observation/left_ee_pos_rot"] = obs["left_ee_pos_rot"][:6]
+        dz_obs["observation/left_ee_gripper"] = obs["left_ee_pos_rot"][6:7]
+        dz_obs["observation/right_ee_pos_rot"] = obs["right_ee_pos_rot"][:6]
+        dz_obs["observation/right_ee_gripper"] = obs["right_ee_pos_rot"][6:7]
 
         # Task prompt
         if self.task_description is not None:
@@ -239,23 +255,8 @@ class DreamZeroClient:
         """
         action_type = action_type or self.action_type
 
-        # Debug: log raw gripper values before binarization
-        if self.verbose:
-            logger.info(
-                f"[Action] step={self._global_step} | "
-                f"L_grip_raw={action[6]:.4f}, R_grip_raw={action[13]:.4f} | "
-                f"L_grip_tcp={action[20]:.4f}, R_grip_tcp={action[27]:.4f}"
-            )
-
         # Binarize gripper values
         action = self._binarize_gripper(action)
-
-        if self.verbose:
-            logger.info(
-                f"[Action] step={self._global_step} | "
-                f"L_grip_bin={action[6]:.4f}, R_grip_bin={action[13]:.4f} | "
-                f"L_grip_tcp_bin={action[20]:.4f}, R_grip_tcp_bin={action[27]:.4f}"
-            )
 
         if action_type in ("joint", "gello"):
             self.robot.left_arm.step_joint(action[0:7])
@@ -306,19 +307,19 @@ class DreamZeroClient:
             dz_obs = self._build_observation(obs)
 
             start = time.perf_counter()
-            actions = np.array(self._infer_ws(dz_obs))  # (24, 28), writable copy
+            actions = np.array(self._infer_ws(dz_obs))  # (N, 28)
             elapsed_ms = (time.perf_counter() - start) * 1000
 
             if self.verbose:
                 logger.info(
                     f"Inference: {elapsed_ms:.0f}ms, "
                     f"actions shape={actions.shape}, "
-                    f"frames={'1' if self._is_first_inference else '4'}, "
+                    f"frames={'1' if self._is_first_inference else str(NUM_FRAMES_PER_CHUNK)}, "
                     f"step={self._global_step}"
                 )
 
-            # Enqueue all 24 actions
-            for i in range(actions.shape[0]):
+            # Enqueue actions (limited by execution_steps)
+            for i in range(min(self.execution_steps, actions.shape[0])):
                 self.action_queue.append(actions[i])
 
             self._is_first_inference = False

@@ -40,6 +40,7 @@ register_client("bimanual_ur_starvla", "Bimanual UR + StarVLA", _starvla_factory
 
 def _dreamzero_add_arguments(parser):
     parser.add_argument("--action_type", type=str, default="joint", choices=["joint", "tcp"])
+    parser.add_argument("--execution_steps", type=int, default=24)
 
 
 def _dreamzero_factory(args):
@@ -52,7 +53,8 @@ def _dreamzero_factory(args):
     robot.connect()
     client = DreamZeroClient(
         host=args.host, port=args.port, robot=robot,
-        fps=args.fps, action_type=args.action_type, verbose=args.verbose,
+        fps=args.fps, action_type=args.action_type,
+        execution_steps=args.execution_steps, verbose=args.verbose,
     )
     return robot, client
 

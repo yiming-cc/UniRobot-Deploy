@@ -1,5 +1,5 @@
 #!/bin/bash
-conda activate unirobot
+# conda activate unirobot
 
 # # bimanual ur starVLA client
 # python inference.py \
@@ -17,8 +17,9 @@ conda activate unirobot
 # bimanual ur dreamzero client
 python inference.py \
   --client=bimanual_ur_dreamzero \
-  --host="https://ai-notebook-inspire.sii.edu.cn/ws-9dcc0e1f-80a4-4af2-bc2f-0e352e7b17e6/project-5939d5ca-7339-4306-b57a-7696f8f7a4c1/user-5fd8c13a-1a2d-4ddb-8393-06cb7e005a55/vscode/b393d63a-efb7-49a6-b433-709e9cacb353/a9a87639-8d6c-46bb-9d81-eb6a490e0a51/proxy/5000/" \
+  --host="https://ai-notebook-inspire.sii.edu.cn/ws-9dcc0e1f-80a4-4af2-bc2f-0e352e7b17e6/project-5939d5ca-7339-4306-b57a-7696f8f7a4c1/user-5fd8c13a-1a2d-4ddb-8393-06cb7e005a55/vscode/237053f9-0328-4708-912a-9f6b7f211cc2/18cca2f4-ed7d-41c6-a514-1fdfef1ed4b8/proxy/5000/" \
   --task="Put all the items on the table into the drawer." \
   --action_type=joint \
   --fps=30 \
+  --execution_steps=24 \
   --verbose

@@ -8,11 +8,11 @@ DreamZeroClient 用于对接 DreamZero 推理服务端（`socket_test_optimized_
 |--------|------------|----------------|
 | 多帧机制 | 每次 1 帧 | 首次 1 帧，后续 4 帧 |
 | 图像分辨率 | 224×224 (pad) | 480×640 (resize) |
-| 状态格式 | `observation/state` (28D 合并) | 4 个独立 key（各 7D） |
+| 状态格式 | `observation/state` (28D 合并) | 8 个独立 key（joint 6D + gripper 1D 分离） |
 | 会话管理 | 无 | `session_id` (UUID) |
 | 推理入口 | `infer()` 由父类封装 | 需手动添加 `endpoint="infer"` |
 | 返回格式 | `{"actions": ndarray}` dict | 直接返回 `np.ndarray` |
-| 动作维度顺序 | `[tcp(14), joints(14)]` | `[left_joints(7), right_joints(7), left_tcp(7), right_tcp(7)]` |
+| 动作维度顺序 | `[tcp(14), joints(14)]` | `[left_joints(6), left_grip(1), right_joints(6), right_grip(1), left_tcp(6), left_grip(1), right_tcp(6), right_grip(1)]` |
 
 因此需要完全重写，去掉 `WebsocketClientPolicy` 继承，自建通信层。
 
@@ -62,11 +62,15 @@ ws.recv()  # 服务端确认
     "observation/wrist_l": np.ndarray,
     "observation/wrist_r": np.ndarray,
 
-    # ── 状态观测（4 个独立 key） ──
-    "observation/left_joint_positions":  np.ndarray,  # (7,) = 6 joints + gripper
-    "observation/right_joint_positions": np.ndarray,  # (7,)
-    "observation/left_ee_pos_rot":      np.ndarray,  # (7,) = 6D pose + gripper
-    "observation/right_ee_pos_rot":     np.ndarray,  # (7,)
+    # ── 状态观测（8 个独立 key，joint/gripper 分离） ──
+    "observation/left_joint_positions":  np.ndarray,  # (6,) 关节角度
+    "observation/left_joint_gripper":    np.ndarray,  # (1,) 夹爪
+    "observation/right_joint_positions": np.ndarray,  # (6,)
+    "observation/right_joint_gripper":   np.ndarray,  # (1,)
+    "observation/left_ee_pos_rot":      np.ndarray,  # (6,) TCP 位姿
+    "observation/left_ee_gripper":      np.ndarray,  # (1,) 夹爪
+    "observation/right_ee_pos_rot":     np.ndarray,  # (6,)
+    "observation/right_ee_gripper":     np.ndarray,  # (1,)
 
     # ── 元信息 ──
     "prompt":     str,   # 任务描述
@@ -75,18 +79,38 @@ ws.recv()  # 服务端确认
 }
 ```
 
+服务端内部映射（EMBODIMENT_CONFIGS）：
+
+| 客户端 key | 服务端内部 key | 维度 |
+|-----------|---------------|------|
+| `observation/top` | `video.top` | 图像 |
+| `observation/wrist_l` | `video.wrist_l` | 图像 |
+| `observation/wrist_r` | `video.wrist_r` | 图像 |
+| `observation/left_joint_positions` | `state.left_joint_positions` | 6 |
+| `observation/left_joint_gripper` | `state.left_joint_gripper` | 1 |
+| `observation/right_joint_positions` | `state.right_joint_positions` | 6 |
+| `observation/right_joint_gripper` | `state.right_joint_gripper` | 1 |
+| `observation/left_ee_pos_rot` | `state.left_ee_pos_rot` | 6 |
+| `observation/left_ee_gripper` | `state.left_ee_gripper` | 1 |
+| `observation/right_ee_pos_rot` | `state.right_ee_pos_rot` | 6 |
+| `observation/right_ee_gripper` | `state.right_ee_gripper` | 1 |
+
 ### 动作返回（服务端 → 客户端）
 
 服务端直接返回 `np.ndarray`，shape `(24, 28)`。
 
 28 维动作顺序（与 EMBODIMENT_CONFIGS 的 action_keys 一致）：
 
-| 索引 | 内容 | 来源 |
-|------|------|------|
-| 0-6 | left_joint_positions (6 joints + gripper) | 左臂关节 |
-| 7-13 | right_joint_positions (6 joints + gripper) | 右臂关节 |
-| 14-20 | left_ee_pos_rot (6D pose + gripper) | 左臂 TCP |
-| 21-27 | right_ee_pos_rot (6D pose + gripper) | 右臂 TCP |
+| 索引 | 内容 | 对应 action_key |
+|------|------|----------------|
+| 0-5 | left_joint_positions (6 joints) | `action.left_joint_positions` |
+| 6 | left_joint_gripper (1) | `action.left_joint_gripper` |
+| 7-12 | right_joint_positions (6 joints) | `action.right_joint_positions` |
+| 13 | right_joint_gripper (1) | `action.right_joint_gripper` |
+| 14-19 | left_ee_pos_rot (6D pose) | `action.left_ee_pos_rot` |
+| 20 | left_ee_gripper (1) | `action.left_ee_gripper` |
+| 21-26 | right_ee_pos_rot (6D pose) | `action.right_ee_pos_rot` |
+| 27 | right_ee_gripper (1) | `action.right_ee_gripper` |
 
 执行映射：
 - `action_type="joint"`: 使用 `[0:7]` 和 `[7:14]`

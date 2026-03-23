@@ -64,7 +64,7 @@ def main():
 
             if args.verbose:
                 total = time.perf_counter() - loop_start
-                print(f"Loop: {total * 1000:.1f}ms ({1.0 / total:.1f} Hz)")
+                # print(f"Loop: {total * 1000:.1f}ms ({1.0 / total:.1f} Hz)")
 
     except KeyboardInterrupt:
         print("\nStopping...")
